@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Total Scores</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: white;
+      padding: 20px;
+    }
+    svg {
+      width: 100%;
+      height: 600px;
+    }
+    .bar {
+      fill: #952d2c;
+    }
+    .label {
+      font: 14px sans-serif;
+      text-anchor: middle;
+    }
+    .score {
+      fill: white;
+      font-weight: bold;
+      text-anchor: middle;
+    }
+    .avatar {
+      width: 50px;
+      height: 50px;
+      object-fit: cover;
+      position: absolute;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Total Scores</h1>
+  <div id="chart-container" style="position: relative;">
+    <svg id="chart"></svg>
+  </div>
+  <script>
+    const width = 800;
+    const height = 600;
+    const margin = { top: 50, right: 30, bottom: 50, left: 100 };
+
+    const svg = d3.select("#chart")
+      .attr("width", width)
+      .attr("height", height);
+
+    const chartWidth = width - margin.left - margin.right;
+    const chartHeight = height - margin.top - margin.bottom;
+
+    const g = svg.append("g")
+      .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    let x = d3.scaleBand().padding(0.2).range([0, chartWidth]);
+    let y = d3.scaleLinear().range([chartHeight, 0]);
+
+    let previousPositions = new Map();
+
+    function update(data) {
+      data.sort((a, b) => a.Points - b.Points); // high scores on right
+      const players = data.map(d => d.Player);
+
+      const prevX = new Map();
+      x.domain(players);
+      y.domain([0, d3.max(data, d => +d.Points)]);
+
+      data.forEach(d => {
+        prevX.set(d.Player, previousPositions.get(d.Player) ?? x(d.Player));
+      });
+      previousPositions = new Map(data.map(d => [d.Player, x(d.Player)]));
+
+      const bars = g.selectAll(".bar").data(data, d => d.Player);
+      bars.enter().append("rect")
+          .attr("class", "bar")
+          .attr("x", d => prevX.get(d.Player))
+          .attr("y", d => y(0))
+          .attr("width", x.bandwidth())
+          .attr("height", 0)
+        .merge(bars)
+          .transition().duration(1000)
+          .attr("x", d => x(d.Player))
+          .attr("y", d => y(d.Points))
+          .attr("width", x.bandwidth())
+          .attr("height", d => chartHeight - y(d.Points));
+
+      bars.exit().remove();
+
+      const labels = g.selectAll(".label").data(data, d => d.Player);
+      labels.enter().append("text")
+          .attr("class", "label")
+          .attr("x", d => prevX.get(d.Player) + x.bandwidth() / 2)
+          .attr("y", chartHeight + 20)
+          .text(d => d.Player)
+        .merge(labels)
+          .transition().duration(1000)
+          .attr("x", d => x(d.Player) + x.bandwidth() / 2);
+
+      labels.exit().remove();
+
+      const scores = g.selectAll(".score").data(data, d => d.Player);
+      scores.enter().append("text")
+          .attr("class", "score")
+          .attr("x", d => x(d.Player) + x.bandwidth() / 2)
+          .attr("y", d => y(d.Points) + 20)
+          .text(d => d.Points)
+        .merge(scores)
+          .transition().duration(1000)
+          .attr("x", d => x(d.Player) + x.bandwidth() / 2)
+          .attr("y", d => y(d.Points) + 20)
+          .text(d => d.Points);
+
+      scores.exit().remove();
+
+      const container = d3.select("#chart-container");
+      container.selectAll(".avatar").data(data, d => d.Player)
+        .join(
+          enter => enter.append("img")
+            .attr("class", "avatar")
+            .attr("src", d => `avatars/${d.Player}.png`)
+            .style("left", d => `${margin.left + x(d.Player) + x.bandwidth() / 2}px`)
+            .style("top", d => `${margin.top + y(d.Points) - 30}px`),
+          update => update.transition().duration(1000)
+            .style("left", d => `${margin.left + x(d.Player) + x.bandwidth() / 2}px`)
+            .style("top", d => `${margin.top + y(d.Points) - 30}px`)
+        );
+    }
+
+    function refreshData() {
+      d3.csv("data.csv").then(data => {
+        data.forEach(d => d.Points = +d.Points);
+        update(data);
+      });
+    }
+
+    refreshData();
+
+    d3.select("body")
+      .append("button")
+      .text("Refresh Scores")
+      .style("margin-top", "20px")
+      .on("click", refreshData);
+  </script>
+</body>
+</html>
