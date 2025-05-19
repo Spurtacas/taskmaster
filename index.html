@@ -131,12 +131,13 @@
     }
 
     function refreshData() {
-      d3.csv("data.csv").then(data => {
+      const timestamp = new Date().getTime();
+      d3.csv(`data.csv?t=${timestamp}`).then(data => {
         data.forEach(d => d.Points = +d.Points);
         update(data);
       });
     }
-
+    
     refreshData();
 
     d3.select("body")
